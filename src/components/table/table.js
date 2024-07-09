@@ -118,9 +118,6 @@ const Table0 = () => {
     [validationErrors],
   );
 
-
-
-
   <>
   <handleCreateUser schema={schema} setValidationErrors={setValidationErrors} setIsSaving={setIsSaving} setFetchedUsers={setFetchedUsers} />
 
