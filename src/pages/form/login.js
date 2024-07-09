@@ -34,7 +34,6 @@ export default function SignIn({login, logout}) {
   const navigate = useNavigate();
   
   const onSubmit = data => {
-    console.log(data);
 
     if (data.user === 'admin0021' && data.password === '1qaz') {
       localStorage.setItem("username", data.user)
@@ -61,13 +60,14 @@ export default function SignIn({login, logout}) {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
+            boxShadow: 1,
           }}
         >
-          <Box sx={{ backgroundColor: '#80deea', paddingX: 8, paddingBottom: 2, borderRadius: 40, boxShadow: '0,0,4px,black'}}>
-            <Avatar sx={{ padding: 2, margin: 2, backgroundColor: '#42a5f5', color: 'wheat' }}>
+          <Box sx={{ backgroundColor: '#80deea', paddingX: 8, paddingBottom: 2, borderRadius: 40, boxShadow: 2}}>
+            <Avatar sx={{ padding: 2, margin: 2, backgroundColor: '#42a5f5', color: 'wheat', boxShadow: 1 }}>
               <LockOpenTwoTone />
             </Avatar>
-            <Typography component="h1" variant="h5" sx={{ backgroundColor: '#0288d1', padding: 1, borderRadius: 50, color: 'wheat', textAlign: 'center' }}>
+            <Typography component="h1" variant="h5" sx={{ backgroundColor: '#0288d1', padding: 1, borderRadius: 50, color: 'wheat', textAlign: 'center', boxShadow: 1}}>
               ورود
             </Typography>
           </Box>

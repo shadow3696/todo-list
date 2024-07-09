@@ -1,23 +1,31 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 
-import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import localforage from 'localforage';
 
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table';
 import { Box, Button, IconButton, Tooltip } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 
-import { fakeData, usStates } from './makeData';
+import { fakeData, usStates } from '../../data/makeData';
+
+import '../../css/style.css';
 
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 
+import openDeleteConfirmModal from '../componentsData/deleteUser'
+import handleCreateUser from '../componentsData/createUser'
+import handleSaveUser from '../componentsData/updateUser'
 
 const Table0 = () => {
   const [validationErrors, setValidationErrors] = useState({});
-  const queryClient = useQueryClient();
-  
+  const [fetchedUsers, setFetchedUsers] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const schema = yup.object().shape({
     firstName: yup.string().required('اسمت رو باید بنویسی'),
     lastName: yup.string().required('فامیلیت اجباریه'),
@@ -28,6 +36,21 @@ const Table0 = () => {
   const { register, handleSubmit, formState: { errors } } = useForm({
     resolver: yupResolver(schema),
   });
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      setIsLoading(true);
+      const users = await localforage.getItem('users');
+      if (users) {
+        setFetchedUsers(users);
+      } else {
+        await localforage.setItem('users', fakeData);
+        setFetchedUsers(fakeData);
+      }
+      setIsLoading(false);
+    };
+    fetchUsers();
+  }, []);
 
   const columns = useMemo(
     () => [
@@ -95,68 +118,16 @@ const Table0 = () => {
     [validationErrors],
   );
 
-  function useGetUsers() {
-    return useQuery({
-      queryKey: ['users'],
-      queryFn: async () => {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        return Promise.resolve(fakeData);
-      },
-      refetchOnWindowFocus: false,
-    });
-  }
 
-  const { mutateAsync: createUser, isPending: isCreatingUser } = useCreateUser();
-  const {
-    data: fetchedUsers = [],
-    isError: isLoadingUsersError,
-    isFetching: isFetchingUsers,
-    isLoading: isLoadingUsers,
-  } = useGetUsers();
-  const { mutateAsync: updateUser, isPending: isUpdatingUser } = useUpdateUser();
-  const { mutateAsync: deleteUser, isPending: isDeletingUser } = useDeleteUser();
 
-  const handleCreateUser = async ({ values, table }) => {
-    try {
-      await schema.validate(values, { abortEarly: false });
-      await createUser(values);
-      table.setCreatingRow(null);
-    } catch (error) {
-      if (error instanceof yup.ValidationError) {
-        const validationErrors = {};
-        error.inner.forEach(err => {
-          validationErrors[err.path] = err.message;
-        });
-        setValidationErrors(validationErrors);
-      } else {
-        console.error('Failed to create user:', error);
-      }
-    }
-  };
 
-  const handleSaveUser = async ({ values, table }) => {
-    try {
-      await schema.validate(values, { abortEarly: false });
-      await updateUser(values);
-      table.setEditingRow(null);
-    } catch (error) {
-      if (error instanceof yup.ValidationError) {
-        const validationErrors = {};
-        error.inner.forEach(err => {
-          validationErrors[err.path] = err.message;
-        });
-        setValidationErrors(validationErrors);
-      } else {
-        console.error('Failed to update user:', error);
-      }
-    }
-  };
+  <>
+  <handleCreateUser schema={schema} setValidationErrors={setValidationErrors} setIsSaving={setIsSaving} setFetchedUsers={setFetchedUsers} />
 
-  const openDeleteConfirmModal = (row) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
-      deleteUser(row.original.id);
-    }
-  };
+  <handleSaveUser schema={schema} setIsSaving={setIsSaving} setFetchedUsers={setFetchedUsers} setValidationErrors={setValidationErrors} />
+
+  <openDeleteConfirmModal setIsDeleting={setIsDeleting} setFetchedUsers={setFetchedUsers}/>
+  </>
 
   const renderRowActions = useCallback(
     ({ row, table }) => (
@@ -200,12 +171,12 @@ const Table0 = () => {
     editDisplayMode: 'row',
     enableEditing: true,
     getRowId: (row) => row.id,
-    muiToolbarAlertBannerProps: isLoadingUsersError
-      ? {
-          color: 'error',
-          children: 'Error loading data',
-        }
-      : undefined,
+    muiToolbarAlertBannerProps: !isLoading
+      ? undefined
+      : {
+          color: 'info',
+          children: 'Loading data...',
+        },
     muiTableContainerProps: {
       sx: {
         minHeight: '500px',
@@ -218,10 +189,10 @@ const Table0 = () => {
     renderRowActions,
     renderTopToolbarCustomActions,
     state: {
-      isLoading: isLoadingUsers,
-      isSaving: isCreatingUser || isUpdatingUser || isDeletingUser,
-      showAlertBanner: isLoadingUsersError,
-      showProgressBars: isFetchingUsers,
+      isLoading,
+      isSaving,
+      isDeleting,
+      showProgressBars: isLoading || isSaving || isDeleting,
     },
   });
 
@@ -235,87 +206,4 @@ const Table0 = () => {
   );
 };
 
-function useCreateUser() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (user) => {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      return Promise.resolve();
-    },
-    onMutate: async (newUserInfo) => {
-      try {
-        await queryClient.cancelQueries(['users']);
-        const previousUsers = queryClient.getQueryData(['users']);
-        queryClient.setQueryData(['users'], (prevUsers) => [
-          ...prevUsers,
-          {
-            ...newUserInfo,
-            id: (Math.random() + 1).toString(36).substring(7),
-          },
-        ]);
-      } catch (error) {
-        const previousUsers = queryClient.getQueryData(['users']);
-        queryClient.setQueryData(['users'], previousUsers);
-        throw new Error('Failed to create user');
-      }
-    },
-  });
-}
-
-function useUpdateUser() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (user) => {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      return Promise.resolve();
-    },
-    onMutate: async (newUserInfo) => {
-      try {
-        const previousUsers = queryClient.getQueryData(['users']);
-        queryClient.setQueryData(['users'], (prevUsers) =>
-          prevUsers?.map((prevUser) =>
-            prevUser.id === newUserInfo.id ? newUserInfo : prevUser
-          )
-        );
-      } catch (error) {
-        const previousUsers = queryClient.getQueryData(['users']);
-        queryClient.setQueryData(['users'], previousUsers);
-        throw new Error('Failed to update user');
-      }
-    },
-  });
-}
-
-function useDeleteUser() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (userId) => {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      return Promise.resolve();
-    },
-    onMutate: async (userId) => {
-      try {
-        const previousUsers = queryClient.getQueryData(['users']);
-        queryClient.setQueryData(['users'], (prevUsers) =>
-          prevUsers?.filter((user) => user.id !== userId)
-        );
-      } catch (error) {
-        const previousUsers = queryClient.getQueryData(['users']);
-        queryClient.setQueryData(['users'], previousUsers);
-        throw new Error('Failed to delete user');
-      }
-    },
-  });
-}
-
-const queryClient = new QueryClient();
-
-const Table0WithProviders = () => (
-  <QueryClientProvider client={queryClient}>
-    <Table0 />
-  </QueryClientProvider>
-);
-
-export default Table0WithProviders;
-
-
+export default Table0;
