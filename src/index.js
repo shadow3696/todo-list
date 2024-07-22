@@ -6,6 +6,7 @@ import rtlPlugin from 'stylis-plugin-rtl';
 import {prefixer} from 'stylis';
 import {CacheProvider} from '@emotion/react';
 import createCache from '@emotion/cache';
+import './assets/css/index.css'
 
 const cacheRtl = createCache({
   key: 'muirtl',
@@ -13,6 +14,9 @@ const cacheRtl = createCache({
 });
 const theme = createTheme({
   direction: 'rtl',
+  typography: {
+    fontFamily: 'Yekan, sans-serif',
+  },
 });
 
 const root = ReactDOM.createRoot(document.getElementById('root'));

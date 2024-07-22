@@ -15,9 +15,6 @@ import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 
-import openDeleteConfirmModal from '../componentsData/deleteUser'
-import handleCreateUser from '../componentsData/createUser'
-import handleSaveUser from '../componentsData/updateUser'
 
 const Table0 = () => {
   const [validationErrors, setValidationErrors] = useState({});
@@ -118,14 +115,68 @@ const Table0 = () => {
     [validationErrors],
   );
 
-  <>
-  <handleCreateUser schema={schema} setValidationErrors={setValidationErrors} setIsSaving={setIsSaving} setFetchedUsers={setFetchedUsers} />
+  
+  const handleCreateUser = async ({ values, table }) => {
+        try {
+      await schema.validate(values, { abortEarly: false });
+      setIsSaving(true);
+      const users = await localforage.getItem('users');
+      const newUser = { ...values, id: (Math.random() + 1).toString(36).substring(7) };
+      const updatedUsers = [...users, newUser];
+      await localforage.setItem('users', updatedUsers);
+      setFetchedUsers(updatedUsers);
+      table.setCreatingRow(null);
+      setIsSaving(false);
+    } catch (error) {
+      if (error instanceof yup.ValidationError) {
+        const validationErrors = {};
+        error.inner.forEach(err => {
+          validationErrors[err.path] = err.message;
+        });
+        setValidationErrors(validationErrors);
+      } else {
+        console.error('Failed to create user:', error);
+      }
+    }
 
-  <handleSaveUser schema={schema} setIsSaving={setIsSaving} setFetchedUsers={setFetchedUsers} setValidationErrors={setValidationErrors} />
+  };
 
-  <openDeleteConfirmModal setIsDeleting={setIsDeleting} setFetchedUsers={setFetchedUsers}/>
-  </>
+  const handleSaveUser = async ({ values, table }) => {
+    try {
+      await schema.validate(values, { abortEarly: false });
+      setIsSaving(true);
+      const users = await localforage.getItem('users');
+      const updatedUsers = users.map(user =>
+        user.id === values.id ? values : user
+      );
+      await localforage.setItem('users', updatedUsers);
+      setFetchedUsers(updatedUsers);
+      table.setEditingRow(null);
+      setIsSaving(false);
+    } catch (error) {
+      if (error instanceof yup.ValidationError) {
+        const validationErrors = {};
+        error.inner.forEach(err => {
+          validationErrors[err.path] = err.message;
+        });
+        setValidationErrors(validationErrors);
+      } else {
+        console.error('Failed to update user:', error);
+      }
+    }
+  };
 
+  const openDeleteConfirmModal = async (row) => {
+    if (window.confirm('Are you sure you want to delete this user?')) {
+      setIsDeleting(true);
+      const users = await localforage.getItem('users');
+      const updatedUsers = users.filter(user => user.id !== row.original.id);
+      await localforage.setItem('users', updatedUsers);
+      setFetchedUsers(updatedUsers);
+      setIsDeleting(false);
+    }
+  };
+  
   const renderRowActions = useCallback(
     ({ row, table }) => (
       <Box sx={{ display: 'flex', gap: '1rem'}}>
